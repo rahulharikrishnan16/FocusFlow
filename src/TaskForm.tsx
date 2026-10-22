@@ -35,7 +35,8 @@ export function TaskForm({ task, today, subjects, onSave, onDelete, onClose }: P
   const hint = codeHint(subject)
 
   return (
-    <dialog ref={dlg} onClose={onClose} aria-labelledby="form-title">
+    // Close through React state, not the async native 'close' event (it didn't always arrive, leaving a closed dialog mounted)
+    <dialog ref={dlg} onCancel={e => { e.preventDefault(); onClose() }} onClose={onClose} aria-labelledby="form-title">
       <form onSubmit={submit}>
         <h2 id="form-title">{task ? 'Edit task' : 'New task'}</h2>
         <label>Title
@@ -70,7 +71,7 @@ export function TaskForm({ task, today, subjects, onSave, onDelete, onClose }: P
         {due && due < today && !task?.done && <p className="hint">Will show as overdue.</p>}
         <div className="row end">
           {task && <button type="button" className="danger" onClick={() => onDelete(task)}>Delete</button>}
-          <button type="button" onClick={() => dlg.current?.close()}>Cancel</button>
+          <button type="button" onClick={onClose}>Cancel</button>
           <button type="submit" className="primary">Save</button>
         </div>
       </form>

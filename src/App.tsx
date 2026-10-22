@@ -53,7 +53,7 @@ function download(name: string, text: string) {
 }
 
 // After a dispatch the clicked element may have moved or unmounted; fall back to the heading it left
-const refocus = (id: string, fallback: string) => requestAnimationFrame(() => {
+const refocus = (id: string, fallback: string) => setTimeout(() => {
   const el = document.getElementById(id)
   el?.focus()
   if (document.activeElement !== el) document.getElementById(fallback)?.focus()
@@ -146,7 +146,7 @@ export default function App() {
     dispatch({ type: 'remove', id: t.id })
     setToast({ text: `Deleted "${t.title}"`, undo: { type: 'add', task: t } })
     setEditing(null)
-    requestAnimationFrame(() => document.getElementById('toast-undo')?.focus())
+    setTimeout(() => document.getElementById('toast-undo')?.focus())
   }
   const undo = (a: Action) => {
     dispatch(a)
@@ -154,10 +154,15 @@ export default function App() {
     const id = a.type === 'add' ? a.task.id : a.type === 'patch' ? a.id : ''
     refocus(`edit-${id}`, 'new-btn')
   }
+  const closeForm = () => {
+    const opener = editing && editing !== 'new' ? `edit-${editing.id}` : 'new-btn'
+    setEditing(null)
+    refocus(opener, 'new-btn')
+  }
   const removeSamples = () => {
     dispatch({ type: 'replace', tasks: tasks.filter(t => !t.id.startsWith('seed-')) })
     setToast({ text: 'Sample tasks removed', undo: { type: 'replace', tasks } })
-    requestAnimationFrame(() => document.getElementById('toast-undo')?.focus())
+    setTimeout(() => document.getElementById('toast-undo')?.focus())
   }
   const exportAll = () => download(`focusflow-${ymd(now)}.json`, serialize(tasks))
   const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -269,7 +274,7 @@ export default function App() {
 
       {editing && (
         <TaskForm key={editing === 'new' ? 'new' : editing.id} task={editing === 'new' ? null : editing} today={ymd(now)}
-          subjects={subs} onSave={save} onDelete={remove} onClose={() => setEditing(null)} />
+          subjects={subs} onSave={save} onDelete={remove} onClose={closeForm} />
       )}
     </>
   )
