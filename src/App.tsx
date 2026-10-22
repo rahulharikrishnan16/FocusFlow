@@ -11,7 +11,26 @@ const initial = load(ls, new Date())
 
 const LABEL: Record<Bucket, string> = { overdue: 'Overdue', today: 'Today', upcoming: 'Next 7 days', later: 'Later', completed: 'Completed' }
 const EMPTY = { overdue: 'Nothing overdue', today: 'Nothing due today', upcoming: 'Nothing in the next 7 days' }
-type Notice = { text: string; sticky: boolean; damaged?: boolean }
+const THEME_KEY = 'focusflow:theme'
+const ringText = (done: number, total: number) =>
+  total === 0 ? 'No tasks due today' : done === total ? 'All done for today' : `${done} of ${total} done`
+
+// Unfiltered on purpose: a filter shouldn't change how much of today is done
+function Ring({ done, total }: { done: number; total: number }) {
+  const C = 2 * Math.PI * 34
+  return (
+    <div className="ring" role="progressbar" aria-label="Done today" aria-valuemin={0} aria-valuemax={Math.max(total, 1)}
+      aria-valuenow={done} aria-valuetext={ringText(done, total)}>
+      <svg viewBox="0 0 80 80" aria-hidden="true">
+        <circle cx="40" cy="40" r="34" className="track" />
+        {done > 0 && <circle cx="40" cy="40" r="34" className="fill" strokeDasharray={C} strokeDashoffset={C * (1 - done / total)} transform="rotate(-90 40 40)" />}
+      </svg>
+      <span aria-hidden="true">{total ? `${done}/${total}` : '–'}</span>
+    </div>
+  )
+}
+
+type Notice ={ text: string; sticky: boolean; damaged?: boolean }
 type Toast = { text: string; undo?: Action } | null
 
 function useNow() {
@@ -52,6 +71,15 @@ export default function App() {
   const canSave = useRef(initial.canSave)
   const last = useRef(initial.last) // last string read or written; equal strings are skipped (stops tab echo)
   const fileInput = useRef<HTMLInputElement>(null)
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme)
+
+  // Reads the DOM, not state, so a stale closure can't flip the wrong way
+  const toggleTheme = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
+    document.documentElement.dataset.theme = next
+    try { ls?.setItem(THEME_KEY, next) } catch { /* preference only; nothing to lose */ }
+    setTheme(next)
+  }
 
   const persist = (ts: Task[]) => {
     if (!ls || !canSave.current) return
@@ -63,7 +91,12 @@ export default function App() {
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.storageArea !== ls || e.key !== KEY) return
+      if (e.storageArea !== ls) return
+      if (e.key === THEME_KEY && (e.newValue === 'dark' || e.newValue === 'light')) {
+        document.documentElement.dataset.theme = e.newValue
+        return setTheme(e.newValue)
+      }
+      if (e.key !== KEY) return
       const p = parse(e.newValue)
       if (!p) return
       last.current = e.newValue
@@ -121,6 +154,11 @@ export default function App() {
     const id = a.type === 'add' ? a.task.id : a.type === 'patch' ? a.id : ''
     refocus(`edit-${id}`, 'new-btn')
   }
+  const removeSamples = () => {
+    dispatch({ type: 'replace', tasks: tasks.filter(t => !t.id.startsWith('seed-')) })
+    setToast({ text: 'Sample tasks removed', undo: { type: 'replace', tasks } })
+    requestAnimationFrame(() => document.getElementById('toast-undo')?.focus())
+  }
   const exportAll = () => download(`focusflow-${ymd(now)}.json`, serialize(tasks))
   const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -158,7 +196,12 @@ export default function App() {
     <>
       <header className="top">
         <h1>FocusFlow</h1>
-        <button id="new-btn" className="primary" onClick={() => setEditing('new')}>+ New<span className="wide"> task</span></button>
+        <div className="actions">
+          <button id="new-btn" className="primary" onClick={() => setEditing('new')}>+ New<span className="wide"> task</span></button>
+          <button className="icon" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
+            <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+          </button>
+        </div>
       </header>
 
       {notice && (
@@ -189,11 +232,14 @@ export default function App() {
           {filtered && <button onClick={clearFilters}>Clear</button>}
         </div>
 
-        <p className="summary">
-          {prog.total ? `${prog.done} of ${prog.total} done today` : 'No tasks due today'}
-          {overdueAll > 0 && ` · ${overdueAll} overdue`}
-          {tasks.some(t => t.id.startsWith('seed-')) && <> · Sample tasks <button className="link" onClick={() => dispatch({ type: 'replace', tasks: tasks.filter(t => !t.id.startsWith('seed-')) })}>Remove samples</button></>}
-        </p>
+        <div className="summary">
+          <Ring done={prog.done} total={prog.total} />
+          <p>
+            {ringText(prog.done, prog.total)}{prog.total > 0 && prog.done < prog.total && ' today'}
+            {overdueAll > 0 && ` · ${overdueAll} overdue`}
+            {tasks.some(t => t.id.startsWith('seed-')) && <> · Sample tasks <button className="link" onClick={removeSamples}>Remove samples</button></>}
+          </p>
+        </div>
 
         {tasks.length === 0 ? (
           <div className="empty big"><p>No assignments yet</p><button className="primary" onClick={() => setEditing('new')}>+ New task</button></div>
