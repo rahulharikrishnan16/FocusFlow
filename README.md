@@ -24,8 +24,8 @@ Not affiliated with VIT.
 - [x] Progress ring for today's completion (counts all of today's tasks, ignores filters)
 - [x] Dark/light theme: follows the OS until you pick one, saved, applied before first paint so there is no flash
 - [x] Responsive mobile layout: 1 → 2 → 3 columns, no horizontal scroll from 320 px, 44 px touch targets
-- [ ] Keyboard shortcuts (in progress)
-- [ ] Drag-and-drop priority board (in progress)
+- [x] Keyboard shortcuts with a `?` help dialog and an off switch (see below)
+- [x] Drag-and-drop priority board: High / Med / Low columns, works with mouse, touch and keyboard
 
 ## Run
 
@@ -36,6 +36,19 @@ npm test         # date, bucket, reducer and persistence tests
 npm run build
 ```
 
+## Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `N` | New task |
+| `/` | Jump to the subject filter |
+| `D` / `B` | Dashboard / priority board |
+| `C` | Clear filters |
+| `T` | Toggle theme |
+| `?` | Help (includes the switch to turn single-key shortcuts off) |
+
+Shortcuts are ignored while typing in a field, with Ctrl/Cmd/Alt held, while a dialog is open and mid-drag. On the board, focus a card's ⠿ handle, press `Space` to pick it up, any arrow key to jump to the next or previous column, `Space` to drop, `Esc` to cancel. Every card also has a priority dropdown, so dragging is never the only way to change priority.
+
 ## State management
 
 **Source of truth.** One `tasks: Task[]` held by `useReducer` in `App.tsx`. All logic lives in React-free `src/store.ts`, which is unit-tested with `node:test`.
@@ -44,7 +57,7 @@ npm run build
 
 **Derived, never stored.** Overdue / Today / Next 7 days, the filtered list, the "x of y done today" summary and the subject list are all recomputed from `(tasks, filters, now)` on every render, so they cannot drift out of sync. `now` ticks every 60 s and when the tab is shown again, so the dashboard rolls over at midnight.
 
-**UI state** (filters, open dialog, toast, banners) is plain `useState` and not persisted.
+**UI state** (filters, view, open dialog, toast, banners) is plain `useState` and not persisted. The board has no state of its own: a drop dispatches the same `patch` as the priority dropdown, and column order comes from the due-date sort, so there is no `order` field to keep in sync. Theme and shortcut preferences live outside React (`localStorage` plus a `data-theme` attribute set before first paint).
 
 **Persistence.** One versioned key, `focusflow:data` (`{version, tasks}`). Every read (load, import, other-tab `storage` event) goes through `parse`, which validates each task and drops bad rows. Damaged data is copied to a backup key before anything is overwritten; if even the backup fails, saving pauses until the user resumes. A failed save (quota) shows a banner instead of losing the screen. Writes are skipped when the string is unchanged, which stops tab-to-tab echo. If storage is blocked the app runs in memory and says so.
 
