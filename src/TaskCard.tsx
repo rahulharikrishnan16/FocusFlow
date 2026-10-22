@@ -1,3 +1,4 @@
+import type { CSSProperties, ReactNode } from 'react'
 import { PLABEL, PRIORITIES, daysBetween, isLate, toDate, ymd, type Priority, type Task } from './store.ts'
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -17,14 +18,16 @@ interface Props {
   onToggle: (t: Task) => void
   onPriority: (t: Task, p: Priority) => void
   onEdit: (t: Task) => void
+  drag?: { ref: (el: HTMLElement | null) => void; style: CSSProperties; grip: ReactNode } // board only
 }
 
-export function TaskCard({ task: t, now, onToggle, onPriority, onEdit }: Props) {
+export function TaskCard({ task: t, now, onToggle, onPriority, onEdit, drag }: Props) {
   const [h, m] = t.time.split(':').map(Number)
   const date = dateFmt.format(toDate(t.due)) + (t.time ? ` · ${timeFmt.format(new Date(2000, 0, 1, h, m))}` : '')
   const rel = when(t, now)
   return (
-    <li className={`card p-${t.priority}${t.done ? ' done' : ''}`}>
+    <li ref={drag?.ref} style={drag?.style} className={`card p-${t.priority}${t.done ? ' done' : ''}${drag ? ' has-grip' : ''}`}>
+      {drag?.grip}
       <label className="check">
         <input type="checkbox" id={`chk-${t.id}`} checked={t.done} onChange={() => onToggle(t)} aria-label={`Mark ${t.title} done`} />
       </label>

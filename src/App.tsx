@@ -6,6 +6,7 @@ import {
 import { TaskCard } from './TaskCard.tsx'
 import { TaskForm } from './TaskForm.tsx'
 import { Help } from './Help.tsx'
+import { Board } from './Board.tsx'
 
 // Module scope on purpose: an initializer would run twice under StrictMode and back up damaged data twice
 const initial = load(ls, new Date())
@@ -77,6 +78,8 @@ export default function App() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme)
   const [shortcutsOn, setShortcutsOn] = useState(readShortcutsOn)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [view, setView] = useState<'dashboard' | 'board'>('dashboard')
+  const [dragging, setDragging] = useState(false)
 
   // Reads the DOM, not state, so a stale closure can't flip the wrong way
   const toggleTheme = () => {
@@ -123,6 +126,8 @@ export default function App() {
     keys.current = {
       n: () => setEditing('new'),
       '/': () => document.getElementById('f-subject')?.focus(),
+      d: () => setView('dashboard'),
+      b: () => setView('board'),
       c: () => setFilters({ subject: '', priority: '', type: '' }),
       t: toggleTheme,
       '?': () => setHelpOpen(true),
@@ -131,7 +136,7 @@ export default function App() {
   useEffect(() => {
     if (!shortcutsOn) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.isComposing) return
+      if (dragging || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.isComposing) return
       // Checkboxes are excluded from the block-list so shortcuts still work right after ticking a task
       if ((e.target as Element).closest?.('input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable="true"]')) return
       if (document.querySelector('dialog[open]')) return
@@ -140,7 +145,7 @@ export default function App() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [shortcutsOn])
+  }, [shortcutsOn, dragging])
 
   // ---- derived on every render, never stored
   const subs = subjects(tasks)
@@ -153,6 +158,7 @@ export default function App() {
   const clearFilters = () => setFilters({ subject: '', priority: '', type: '' })
 
   // ---- actions
+  const heading = (t: Task) => view === 'board' ? `h-col-${t.priority}` : `h-${bucketOf(t, now)}`
   const toggle = (t: Task) => {
     const done = !t.done
     const b = bucketOf({ ...t, done }, now)
@@ -161,12 +167,12 @@ export default function App() {
       text: !done ? `"${t.title}" marked not done` : b === 'completed' ? `"${t.title}" moved to Completed` : `"${t.title}" marked done`,
       undo: { type: 'patch', id: t.id, patch: { done: t.done } },
     })
-    refocus(`chk-${t.id}`, `h-${bucketOf(t, now)}`)
+    refocus(`chk-${t.id}`, heading(t))
   }
-  const setPriority = (t: Task, p: Priority) => {
+  const setPriority = (t: Task, p: Priority, focusId = `pri-${t.id}`) => {
     dispatch({ type: 'patch', id: t.id, patch: { priority: p } })
     setToast({ text: `"${t.title}" priority set to ${PLABEL[p]}`, undo: { type: 'patch', id: t.id, patch: { priority: t.priority } } })
-    refocus(`pri-${t.id}`, `h-${bucketOf(t, now)}`)
+    refocus(focusId, `h-col-${p}`)
   }
   const save = (t: Task) => {
     const isNew = editing === 'new'
@@ -176,7 +182,7 @@ export default function App() {
     const hidden = applyFilters([t], filt).length === 0
     setToast({ text: `${isNew ? 'Added' : 'Saved'} "${t.title}" to ${LABEL[b]}${hidden ? ' · hidden by filters' : ''}` })
     setEditing(null)
-    refocus(`edit-${id}`, `h-${b}`)
+    refocus(`edit-${id}`, heading(t))
   }
   const remove = (t: Task) => {
     dispatch({ type: 'remove', id: t.id })
@@ -246,6 +252,11 @@ export default function App() {
         </div>
       </header>
 
+      <div className="views" role="group" aria-label="View">
+        <button aria-pressed={view === 'dashboard'} aria-keyshortcuts="D" onClick={() => setView('dashboard')}>Dashboard</button>
+        <button aria-pressed={view === 'board'} aria-keyshortcuts="B" onClick={() => setView('board')}>Priority board</button>
+      </div>
+
       {notice && (
         <div className="banner" role="alert">
           <span>{notice.text}</span>
@@ -288,8 +299,15 @@ export default function App() {
         ) : (
           <>
             {visible.length === 0 && <p className="empty">No tasks match. <button className="link" onClick={clearFilters}>Clear filters</button></p>}
-            <div className="grid">{(['overdue', 'today', 'upcoming'] as const).map(section)}</div>
-            {(['later', 'completed'] as const).map(details)}
+            {view === 'board' ? (
+              <Board tasks={visible.filter(t => !t.done)} now={now} onToggle={toggle} onPriority={setPriority} onEdit={setEditing}
+                onMove={(t, p) => setPriority(t, p, `grip-${t.id}`)} onDragState={setDragging} />
+            ) : (
+              <>
+                <div className="grid">{(['overdue', 'today', 'upcoming'] as const).map(section)}</div>
+                {(['later', 'completed'] as const).map(details)}
+              </>
+            )}
           </>
         )}
       </main>
