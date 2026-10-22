@@ -25,7 +25,9 @@ export function TaskCard({ task: t, now, onToggle, onPriority, onEdit }: Props) 
   const rel = when(t, now)
   return (
     <li className={`card p-${t.priority}${t.done ? ' done' : ''}`}>
-      <input type="checkbox" id={`chk-${t.id}`} checked={t.done} onChange={() => onToggle(t)} aria-label={`Mark ${t.title} done`} />
+      <label className="check">
+        <input type="checkbox" id={`chk-${t.id}`} checked={t.done} onChange={() => onToggle(t)} aria-label={`Mark ${t.title} done`} />
+      </label>
       <div className="body">
         <button type="button" id={`edit-${t.id}`} className="title" onClick={() => onEdit(t)}>{t.title}</button>
         <div className="meta">
