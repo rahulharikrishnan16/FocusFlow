@@ -3,7 +3,7 @@
 Daily view of your DAs, labs, quizzes and FATs, built for VIT students around the DA / CAT / FAT cycle.
 Not affiliated with VIT.
 
-> Live demo: _add the Vercel production URL here after deploy_
+> **Live demo: https://focus-flow-plum-omega.vercel.app**
 
 ![FocusFlow dashboard, light theme](docs/light.jpg)
 
@@ -71,7 +71,7 @@ other tab: 'storage' event → parse() → dispatch(replace)
 
 ## Accessibility
 
-- Lighthouse (mobile, production build): Performance 99, Accessibility 100, Best Practices 100.
+- Lighthouse (mobile, live site): Performance 99, Accessibility 100, Best Practices 100, SEO 100.
 - Checked with accesslint (0 violations on the dashboard and the board) and a keyboard-only run: skip link, logical tab order, visible focus, `<dialog>` with Escape.
 - View and filters are kept in the URL, so `?view=board&priority=high` opens straight to that view.
 - After ticking, editing or deleting a task, focus stays on it or moves to the section it left, and a status message announces what happened (with Undo).
