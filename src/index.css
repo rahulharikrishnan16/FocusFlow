@@ -1,0 +1,2 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font: 1rem/1.5 system-ui, 'Segoe UI', Roboto, sans-serif; background: #f6f7fb; color: #16181d; }
