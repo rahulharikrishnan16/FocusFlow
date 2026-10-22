@@ -5,13 +5,27 @@ Not affiliated with VIT.
 
 > Live demo: _add the Vercel production URL here after deploy_
 
-## Status
+![FocusFlow dashboard, light theme](docs/light.jpg)
 
+<p>
+  <img src="docs/dark.jpg" alt="Dashboard in the dark theme" width="64%">
+  <img src="docs/mobile.jpg" alt="Dashboard on a 360px phone screen" width="30%">
+</p>
+
+## Features
+
+**Base requirements**
 - [x] Create / edit / delete tasks: title, subject, type, due date (+ optional time), priority, done
 - [x] Dashboard: Overdue, Today, Next 7 days, plus collapsed Later and Completed
 - [x] Filter by subject, priority and type
 - [x] Persistence in `localStorage` with backup of damaged data, cross-tab sync, JSON export/import, undo
-- [ ] Dark/light theme, responsive polish, progress ring, keyboard shortcuts, drag-and-drop board (in progress)
+
+**Brownie points**
+- [x] Progress ring for today's completion (counts all of today's tasks, ignores filters)
+- [x] Dark/light theme: follows the OS until you pick one, saved, applied before first paint so there is no flash
+- [x] Responsive mobile layout: 1 → 2 → 3 columns, no horizontal scroll from 320 px, 44 px touch targets
+- [ ] Keyboard shortcuts (in progress)
+- [ ] Drag-and-drop priority board (in progress)
 
 ## Run
 
@@ -41,6 +55,19 @@ other tab: 'storage' event → parse() → dispatch(replace)
 ```
 
 **Why not Redux, Zustand or Context?** One owner and five actions; `dispatch` goes at most three components deep.
+
+## Accessibility
+
+- Checked with accesslint (0 violations) and a keyboard-only run: logical tab order, visible focus, `<dialog>` with Escape.
+- After ticking, editing or deleting a task, focus stays on it or moves to the section it left, and a status message announces what happened (with Undo).
+- All text meets WCAG AA contrast in both themes; priority is shown as text, not only colour.
+- The progress ring is a `progressbar` with a readable value ("1 of 3 done"); animation is off under reduced motion.
+
+## Limits
+
+- Data lives in one browser. Use Export to back up or move it.
+- Two open tabs sync, but the last write wins.
+- Safari may clear site data for sites you haven't visited in a while; export if that matters.
 
 ## Date rules
 
