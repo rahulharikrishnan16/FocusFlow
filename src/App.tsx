@@ -5,6 +5,7 @@ import {
 } from './store.ts'
 import { TaskCard } from './TaskCard.tsx'
 import { TaskForm } from './TaskForm.tsx'
+import { Help } from './Help.tsx'
 
 // Module scope on purpose: an initializer would run twice under StrictMode and back up damaged data twice
 const initial = load(ls, new Date())
@@ -12,6 +13,8 @@ const initial = load(ls, new Date())
 const LABEL: Record<Bucket, string> = { overdue: 'Overdue', today: 'Today', upcoming: 'Next 7 days', later: 'Later', completed: 'Completed' }
 const EMPTY = { overdue: 'Nothing overdue', today: 'Nothing due today', upcoming: 'Nothing in the next 7 days' }
 const THEME_KEY = 'focusflow:theme'
+const KEYS_KEY = 'focusflow:shortcuts'
+const readShortcutsOn = () => { try { return ls?.getItem(KEYS_KEY) !== 'off' } catch { return true } }
 const ringText = (done: number, total: number) =>
   total === 0 ? 'No tasks due today' : done === total ? 'All done for today' : `${done} of ${total} done`
 
@@ -72,6 +75,8 @@ export default function App() {
   const last = useRef(initial.last) // last string read or written; equal strings are skipped (stops tab echo)
   const fileInput = useRef<HTMLInputElement>(null)
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme)
+  const [shortcutsOn, setShortcutsOn] = useState(readShortcutsOn)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // Reads the DOM, not state, so a stale closure can't flip the wrong way
   const toggleTheme = () => {
@@ -105,6 +110,37 @@ export default function App() {
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
   }, [])
+
+  const setShortcuts = (on: boolean) => {
+    setShortcutsOn(on)
+    try { ls?.setItem(KEYS_KEY, on ? 'on' : 'off') } catch { /* preference only */ }
+  }
+  const closeHelp = () => { setHelpOpen(false); refocus('help-btn', 'new-btn') }
+
+  // One listener, registered once. It calls the latest handlers through a ref, so nothing here can go stale.
+  const keys = useRef<Record<string, () => void>>({})
+  useEffect(() => {
+    keys.current = {
+      n: () => setEditing('new'),
+      '/': () => document.getElementById('f-subject')?.focus(),
+      c: () => setFilters({ subject: '', priority: '', type: '' }),
+      t: toggleTheme,
+      '?': () => setHelpOpen(true),
+    }
+  })
+  useEffect(() => {
+    if (!shortcutsOn) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.isComposing) return
+      // Checkboxes are excluded from the block-list so shortcuts still work right after ticking a task
+      if ((e.target as Element).closest?.('input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable="true"]')) return
+      if (document.querySelector('dialog[open]')) return
+      const fn = keys.current[e.key.toLowerCase()] // follows the keyboard layout; Shift allowed so '?' works
+      if (fn) { e.preventDefault(); fn() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [shortcutsOn])
 
   // ---- derived on every render, never stored
   const subs = subjects(tasks)
@@ -202,8 +238,9 @@ export default function App() {
       <header className="top">
         <h1>FocusFlow</h1>
         <div className="actions">
-          <button id="new-btn" className="primary" onClick={() => setEditing('new')}>+ New<span className="wide"> task</span></button>
-          <button className="icon" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
+          <button id="new-btn" className="primary" aria-keyshortcuts="N" onClick={() => setEditing('new')}>+ New<span className="wide"> task</span></button>
+          <button id="help-btn" className="icon" aria-label="Keyboard shortcuts" onClick={() => setHelpOpen(true)}><span aria-hidden="true">?</span></button>
+          <button className="icon" aria-keyshortcuts="T" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
             <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
           </button>
         </div>
@@ -269,9 +306,11 @@ export default function App() {
         <button className="link" onClick={exportAll}>Export</button>
         <button className="link" onClick={() => fileInput.current?.click()}>Import</button>
         <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importFile} />
+        {shortcutsOn && <span className="kbd-hint">Press ? for shortcuts</span>}
         <span>Built for VIT students around the DA / CAT / FAT cycle. Not affiliated with VIT.</span>
       </footer>
 
+      {helpOpen && <Help enabled={shortcutsOn} onToggle={setShortcuts} onClose={closeHelp} />}
       {editing && (
         <TaskForm key={editing === 'new' ? 'new' : editing.id} task={editing === 'new' ? null : editing} today={ymd(now)}
           subjects={subs} onSave={save} onDelete={remove} onClose={closeForm} />
