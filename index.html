@@ -4,9 +4,10 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f7fb" />
     <meta name="description" content="FocusFlow: a daily view of your DAs, labs, quizzes, CATs and FATs, built for VIT students." />
     <title>FocusFlow</title>
-    <script>var t;try{t=localStorage.getItem('focusflow:theme')}catch(e){}document.documentElement.dataset.theme=t==='dark'||t==='light'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')</script>
+    <script>var t;try{t=localStorage.getItem('focusflow:theme')}catch(e){}t=t==='dark'||t==='light'?t:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t;document.querySelector('meta[name=theme-color]').content=t==='dark'?'#0f1115':'#f6f7fb'</script>
   </head>
   <body>
     <div id="root"></div>

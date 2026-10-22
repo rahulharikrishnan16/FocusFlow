@@ -12,6 +12,7 @@ interface Props {
 
 export function TaskForm({ task, today, subjects, onSave, onDelete, onClose }: Props) {
   const dlg = useRef<HTMLDialogElement>(null)
+  const form = useRef<HTMLFormElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const [due, setDue] = useState(task?.due ?? today)
   const [time, setTime] = useState(task?.time ?? '')
@@ -34,17 +35,28 @@ export function TaskForm({ task, today, subjects, onSave, onDelete, onClose }: P
   }
   const hint = codeHint(subject)
 
+  // Escape and Cancel shouldn't silently throw away typing
+  const initial: Record<string, string> = {
+    title: task?.title ?? '', subject: task?.subject ?? '', type: task?.type ?? 'Other',
+    due: task?.due ?? today, time: task?.time ?? '', priority: task?.priority ?? 'med',
+  }
+  const requestClose = () => {
+    const f = new FormData(form.current!)
+    const dirty = Object.keys(initial).some(k => String(f.get(k) ?? '') !== initial[k])
+    if (!dirty || confirm(task ? 'Discard your changes to this task?' : 'Discard this new task?')) onClose()
+  }
+
   return (
     // Close through React state, not the async native 'close' event (it didn't always arrive, leaving a closed dialog mounted)
-    <dialog ref={dlg} onCancel={e => { e.preventDefault(); onClose() }} onClose={onClose} aria-labelledby="form-title">
-      <form onSubmit={submit}>
+    <dialog ref={dlg} onCancel={e => { e.preventDefault(); requestClose() }} onClose={onClose} aria-labelledby="form-title">
+      <form ref={form} onSubmit={submit}>
         <h2 id="form-title">{task ? 'Edit task' : 'New task'}</h2>
         <label>Title
-          <input ref={titleRef} name="title" required maxLength={120} pattern=".*\S.*" title="Enter at least one non-space character" defaultValue={task?.title} />
+          <input ref={titleRef} name="title" autoComplete="off" required maxLength={120} pattern=".*\S.*" title="Enter at least one non-space character" defaultValue={task?.title} />
         </label>
         <label>Subject
-          <input name="subject" list="subjects" required maxLength={60} pattern=".*\S.*" title="Enter at least one non-space character"
-            placeholder="e.g. BCSE202L · Data Structures" aria-describedby="subject-hint"
+          <input name="subject" list="subjects" autoComplete="off" spellCheck={false} required maxLength={60} pattern=".*\S.*" title="Enter at least one non-space character"
+            placeholder="e.g. BCSE202L · Data Structures…" aria-describedby="subject-hint"
             value={subject} onChange={e => setSubject(e.target.value)} />
         </label>
         <datalist id="subjects">{subjects.map(s => <option key={s} value={s} />)}</datalist>
@@ -71,8 +83,8 @@ export function TaskForm({ task, today, subjects, onSave, onDelete, onClose }: P
         {due && due < today && !task?.done && <p className="hint">Will show as overdue.</p>}
         <div className="row end">
           {task && <button type="button" className="danger" onClick={() => onDelete(task)}>Delete</button>}
-          <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit" className="primary">Save</button>
+          <button type="button" onClick={requestClose}>Cancel</button>
+          <button type="submit" className="primary">{task ? 'Save changes' : 'Add task'}</button>
         </div>
       </form>
     </dialog>

@@ -15,7 +15,12 @@ interface Props { enabled: boolean; onToggle: (on: boolean) => void; onClose: ()
 
 export function Help({ enabled, onToggle, onClose }: Props) {
   const dlg = useRef<HTMLDialogElement>(null)
-  useEffect(() => { if (!dlg.current!.open) dlg.current!.showModal() }, [])
+  const close = useRef<HTMLButtonElement>(null)
+  // Focus after showModal(); React's autoFocus would run while the dialog is still closed
+  useEffect(() => {
+    if (!dlg.current!.open) dlg.current!.showModal()
+    close.current?.focus()
+  }, [])
   return (
     <dialog ref={dlg} onCancel={e => { e.preventDefault(); onClose() }} aria-labelledby="help-title">
       <h2 id="help-title">Keyboard shortcuts</h2>
@@ -26,7 +31,7 @@ export function Help({ enabled, onToggle, onClose }: Props) {
       <label className="switch">
         <input type="checkbox" checked={enabled} onChange={e => onToggle(e.target.checked)} /> Enable single-key shortcuts
       </label>
-      <div className="row end"><button type="button" className="primary" autoFocus onClick={onClose}>Close</button></div>
+      <div className="row end"><button ref={close} type="button" className="primary" onClick={onClose}>Close</button></div>
     </dialog>
   )
 }

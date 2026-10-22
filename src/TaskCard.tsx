@@ -34,7 +34,7 @@ export function TaskCard({ task: t, now, onToggle, onPriority, onEdit, drag }: P
       <div className="body">
         <button type="button" id={`edit-${t.id}`} className="title" onClick={() => onEdit(t)}>{t.title}</button>
         <div className="meta">
-          <span>{t.subject}</span>
+          <span translate="no">{t.subject}</span>
           <span className="badge">{t.type}</span>
           <time dateTime={t.due}>{date}</time>
           {rel && <span>{rel}</span>}

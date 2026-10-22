@@ -72,7 +72,8 @@ other tab: 'storage' event → parse() → dispatch(replace)
 ## Accessibility
 
 - Lighthouse (mobile, production build): Performance 99, Accessibility 100, Best Practices 100.
-- Checked with accesslint (0 violations on the dashboard), a structural check of the board, and a keyboard-only run: logical tab order, visible focus, `<dialog>` with Escape.
+- Checked with accesslint (0 violations on the dashboard and the board) and a keyboard-only run: skip link, logical tab order, visible focus, `<dialog>` with Escape.
+- View and filters are kept in the URL, so `?view=board&priority=high` opens straight to that view.
 - After ticking, editing or deleting a task, focus stays on it or moves to the section it left, and a status message announces what happened (with Undo).
 - All text meets WCAG AA contrast in both themes; priority is shown as text, not only colour.
 - The progress ring is a `progressbar` with a readable value ("1 of 3 done"); animation is off under reduced motion.

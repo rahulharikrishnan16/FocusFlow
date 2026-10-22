@@ -16,6 +16,18 @@ const EMPTY = { overdue: 'Nothing overdue', today: 'Nothing due today', upcoming
 const THEME_KEY = 'focusflow:theme'
 const KEYS_KEY = 'focusflow:shortcuts'
 const readShortcutsOn = () => { try { return ls?.getItem(KEYS_KEY) !== 'off' } catch { return true } }
+// View and filters live in the URL, so a link can open straight to the board or a filtered list
+function readUrl(): { view: 'dashboard' | 'board'; filters: Filters } {
+  const q = new URLSearchParams(location.search)
+  const priority = PRIORITIES.find(p => p === q.get('priority')) ?? ''
+  const type = TYPES.find(t => t === q.get('type')) ?? ''
+  return { view: q.get('view') === 'board' ? 'board' : 'dashboard', filters: { subject: q.get('subject') ?? '', priority, type } }
+}
+const fromUrl = readUrl()
+const applyTheme = (t: 'dark' | 'light') => {
+  document.documentElement.dataset.theme = t
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', t === 'dark' ? '#0f1115' : '#f6f7fb')
+}
 const ringText = (done: number, total: number) =>
   total === 0 ? 'No tasks due today' : done === total ? 'All done for today' : `${done} of ${total} done`
 
@@ -66,7 +78,7 @@ const refocus = (id: string, fallback: string) => setTimeout(() => {
 export default function App() {
   const [tasks, dispatch] = useReducer(reducer, initial.tasks)
   const now = useNow()
-  const [filters, setFilters] = useState<Filters>({ subject: '', priority: '', type: '' })
+  const [filters, setFilters] = useState<Filters>(fromUrl.filters)
   const [editing, setEditing] = useState<Task | 'new' | null>(null)
   const [toast, setToast] = useState<Toast>(null)
   const [notice, setNotice] = useState<Notice | null>(initial.notice && { ...initial.notice, damaged: initial.damaged !== null })
@@ -78,13 +90,13 @@ export default function App() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme)
   const [shortcutsOn, setShortcutsOn] = useState(readShortcutsOn)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [view, setView] = useState<'dashboard' | 'board'>('dashboard')
+  const [view, setView] = useState<'dashboard' | 'board'>(fromUrl.view)
   const [dragging, setDragging] = useState(false)
 
   // Reads the DOM, not state, so a stale closure can't flip the wrong way
   const toggleTheme = () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
-    document.documentElement.dataset.theme = next
+    applyTheme(next)
     try { ls?.setItem(THEME_KEY, next) } catch { /* preference only; nothing to lose */ }
     setTheme(next)
   }
@@ -101,7 +113,7 @@ export default function App() {
     const onStorage = (e: StorageEvent) => {
       if (e.storageArea !== ls) return
       if (e.key === THEME_KEY && (e.newValue === 'dark' || e.newValue === 'light')) {
-        document.documentElement.dataset.theme = e.newValue
+        applyTheme(e.newValue)
         return setTheme(e.newValue)
       }
       if (e.key !== KEY) return
@@ -157,6 +169,17 @@ export default function App() {
   const filtered = !!(filt.subject || filt.priority || filt.type)
   const clearFilters = () => setFilters({ subject: '', priority: '', type: '' })
 
+  // replaceState, not pushState: filter tweaks shouldn't fill the Back button history
+  useEffect(() => {
+    const q = new URLSearchParams()
+    if (view === 'board') q.set('view', 'board')
+    if (filt.subject) q.set('subject', filt.subject)
+    if (filt.priority) q.set('priority', filt.priority)
+    if (filt.type) q.set('type', filt.type)
+    const next = `${location.pathname}${q.size ? `?${q}` : ''}`
+    if (next !== location.pathname + location.search) history.replaceState(null, '', next)
+  }, [view, filt.subject, filt.priority, filt.type])
+
   // ---- actions
   const heading = (t: Task) => view === 'board' ? `h-col-${t.priority}` : `h-${bucketOf(t, now)}`
   const toggle = (t: Task) => {
@@ -164,14 +187,14 @@ export default function App() {
     const b = bucketOf({ ...t, done }, now)
     dispatch({ type: 'patch', id: t.id, patch: { done } })
     setToast({
-      text: !done ? `"${t.title}" marked not done` : b === 'completed' ? `"${t.title}" moved to Completed` : `"${t.title}" marked done`,
+      text: !done ? `“${t.title}” marked not done` : b === 'completed' ? `“${t.title}” moved to Completed` : `“${t.title}” marked done`,
       undo: { type: 'patch', id: t.id, patch: { done: t.done } },
     })
     refocus(`chk-${t.id}`, heading(t))
   }
   const setPriority = (t: Task, p: Priority, focusId = `pri-${t.id}`) => {
     dispatch({ type: 'patch', id: t.id, patch: { priority: p } })
-    setToast({ text: `"${t.title}" priority set to ${PLABEL[p]}`, undo: { type: 'patch', id: t.id, patch: { priority: t.priority } } })
+    setToast({ text: `“${t.title}” priority set to ${PLABEL[p]}`, undo: { type: 'patch', id: t.id, patch: { priority: t.priority } } })
     refocus(focusId, `h-col-${p}`)
   }
   const save = (t: Task) => {
@@ -180,13 +203,13 @@ export default function App() {
     dispatch(isNew ? { type: 'add', task: t } : { type: 'patch', id, patch })
     const b = bucketOf(t, now)
     const hidden = applyFilters([t], filt).length === 0
-    setToast({ text: `${isNew ? 'Added' : 'Saved'} "${t.title}" to ${LABEL[b]}${hidden ? ' · hidden by filters' : ''}` })
+    setToast({ text: `${isNew ? 'Added' : 'Saved'} “${t.title}” to ${LABEL[b]}${hidden ? ' · hidden by filters' : ''}` })
     setEditing(null)
     refocus(`edit-${id}`, heading(t))
   }
   const remove = (t: Task) => {
     dispatch({ type: 'remove', id: t.id })
-    setToast({ text: `Deleted "${t.title}"`, undo: { type: 'add', task: t } })
+    setToast({ text: `Deleted “${t.title}”`, undo: { type: 'add', task: t } })
     setEditing(null)
     setTimeout(() => document.getElementById('toast-undo')?.focus())
   }
@@ -211,9 +234,9 @@ export default function App() {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
-    if (f.size > 1e6) return setNotice({ text: 'File too large (max 1 MB).', sticky: false })
+    if (f.size > 1e6) return setNotice({ text: 'That file is too large (max 1 MB). Choose a FocusFlow export.', sticky: false })
     const p = parse(await f.text())
-    if (!p || !p.tasks.length) return setNotice({ text: 'Not a FocusFlow backup.', sticky: false })
+    if (!p || !p.tasks.length) return setNotice({ text: 'Not a FocusFlow backup. Choose a .json file made with Export.', sticky: false })
     if (!confirm(`Import ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}${p.skipped ? `, ${p.skipped} unreadable will be skipped` : ''}? Same-id tasks will be replaced.`)) return
     dispatch({ type: 'merge', tasks: p.tasks })
     setToast({ text: `Imported ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}` })
@@ -241,10 +264,11 @@ export default function App() {
 
   return (
     <>
+      <a className="skip" href="#tasks">Skip to tasks</a>
       <header className="top">
-        <h1>FocusFlow</h1>
+        <h1 translate="no">FocusFlow</h1>
         <div className="actions">
-          <button id="new-btn" className="primary" aria-keyshortcuts="N" onClick={() => setEditing('new')}>+ New<span className="wide"> task</span></button>
+          <button id="new-btn" className="primary" aria-keyshortcuts="N" onClick={() => setEditing('new')}><span aria-hidden="true">+ </span>New<span className="wide"> task</span></button>
           <button id="help-btn" className="icon" aria-label="Keyboard shortcuts" onClick={() => setHelpOpen(true)}><span aria-hidden="true">?</span></button>
           <button className="icon" aria-keyshortcuts="T" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
             <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
@@ -252,22 +276,22 @@ export default function App() {
         </div>
       </header>
 
-      <div className="views" role="group" aria-label="View">
-        <button aria-pressed={view === 'dashboard'} aria-keyshortcuts="D" onClick={() => setView('dashboard')}>Dashboard</button>
-        <button aria-pressed={view === 'board'} aria-keyshortcuts="B" onClick={() => setView('board')}>Priority board</button>
-      </div>
-
-      {notice && (
-        <div className="banner" role="alert">
-          <span>{notice.text}</span>
-          {notice.damaged && <button onClick={() => download('focusflow-damaged.json', initial.damaged!)}>Download damaged data</button>}
-          {paused && <button onClick={resume}>Resume saving</button>}
-          {!notice.sticky && <button onClick={() => setNotice(null)}>Dismiss</button>}
+      <main className={dragging ? 'dragging' : undefined}>
+        <div className="views" role="group" aria-label="View">
+          <button aria-pressed={view === 'dashboard'} aria-keyshortcuts="D" onClick={() => setView('dashboard')}>Dashboard</button>
+          <button aria-pressed={view === 'board'} aria-keyshortcuts="B" onClick={() => setView('board')}>Priority board</button>
         </div>
-      )}
-      {saveError && <div className="banner" role="alert"><span>Couldn't save. Export your tasks now.</span><button onClick={exportAll}>Export</button></div>}
 
-      <main>
+        {notice && (
+          <div className="banner" role="alert">
+            <span>{notice.text}</span>
+            {notice.damaged && <button onClick={() => download('focusflow-damaged.json', initial.damaged!)}>Download damaged data</button>}
+            {paused && <button onClick={resume}>Resume saving</button>}
+            {!notice.sticky && <button onClick={() => setNotice(null)}>Dismiss</button>}
+          </div>
+        )}
+        {saveError && <div className="banner" role="alert"><span>Couldn’t save. Export your tasks now.</span><button onClick={exportAll}>Export</button></div>}
+
         <div className="filters" role="group" aria-label="Filters">
           <select aria-label="Subject" id="f-subject" value={filt.subject} onChange={e => setFilters({ ...filt, subject: e.target.value })}>
             <option value="">All subjects</option>
@@ -294,31 +318,33 @@ export default function App() {
           </p>
         </div>
 
-        {tasks.length === 0 ? (
-          <div className="empty big"><p>No assignments yet</p><button className="primary" onClick={() => setEditing('new')}>+ New task</button></div>
-        ) : (
-          <>
-            {visible.length === 0 && <p className="empty">No tasks match. <button className="link" onClick={clearFilters}>Clear filters</button></p>}
-            {view === 'board' ? (
-              <Board tasks={visible.filter(t => !t.done)} now={now} onToggle={toggle} onPriority={setPriority} onEdit={setEditing}
-                onMove={(t, p) => setPriority(t, p, `grip-${t.id}`)} onDragState={setDragging} />
-            ) : (
-              <>
-                <div className="grid">{(['overdue', 'today', 'upcoming'] as const).map(section)}</div>
-                {(['later', 'completed'] as const).map(details)}
-              </>
-            )}
-          </>
-        )}
-      </main>
+        <div id="tasks" tabIndex={-1}>
+          {tasks.length === 0 ? (
+            <div className="empty big"><p>No assignments yet</p><button className="primary" onClick={() => setEditing('new')}><span aria-hidden="true">+ </span>New task</button></div>
+          ) : (
+            <>
+              {visible.length === 0 && <p className="empty">No tasks match. <button className="link" onClick={clearFilters}>Clear filters</button></p>}
+              {view === 'board' ? (
+                <Board tasks={visible.filter(t => !t.done)} now={now} onToggle={toggle} onPriority={setPriority} onEdit={setEditing}
+                  onMove={(t, p) => setPriority(t, p, `grip-${t.id}`)} onDragState={setDragging} />
+              ) : (
+                <>
+                  <div className="grid">{(['overdue', 'today', 'upcoming'] as const).map(section)}</div>
+                  {(['later', 'completed'] as const).map(details)}
+                </>
+              )}
+            </>
+          )}
+        </div>
 
-      <div className="toast" role="status">
-        {toast && <>
-          <span>{toast.text}</span>
-          {toast.undo && <button id="toast-undo" onClick={() => undo(toast.undo!)}>Undo</button>}
-          <button aria-label="Dismiss message" onClick={() => { setToast(null); refocus('new-btn', 'new-btn') }}>✕</button>
-        </>}
-      </div>
+        <div className="toast" role="status">
+          {toast && <>
+            <span>{toast.text}</span>
+            {toast.undo && <button id="toast-undo" onClick={() => undo(toast.undo!)}>Undo</button>}
+            <button aria-label="Dismiss message" onClick={() => { setToast(null); refocus('new-btn', 'new-btn') }}>✕</button>
+          </>}
+        </div>
+      </main>
 
       <footer>
         <button className="link" onClick={exportAll}>Export</button>

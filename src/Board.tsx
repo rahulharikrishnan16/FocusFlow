@@ -54,7 +54,7 @@ interface Props extends Omit<CardProps, 'task'> {
 export function Board({ tasks, onMove, onDragState, ...card }: Props) {
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: columnJump }))
   const byId = new Map(tasks.map(t => [t.id, t]))
-  const name = (id: unknown) => `"${byId.get(String(id))?.title ?? 'task'}"`
+  const name = (id: unknown) => `“${byId.get(String(id))?.title ?? 'task'}”`
   const label = (id: unknown) => PLABEL[id as Priority]
   // Custom, because the defaults read out the task's UUID
   const announcements: Announcements = {
