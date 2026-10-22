@@ -2,6 +2,7 @@
 export const PRIORITIES = ['high', 'med', 'low'] as const
 export const TYPES = ['DA', 'Quiz', 'CAT', 'FAT', 'Lab', 'Project', 'Other'] as const
 export type Priority = (typeof PRIORITIES)[number]
+export const PLABEL: Record<Priority, string> = { high: 'High', med: 'Med', low: 'Low' }
 export type TaskType = (typeof TYPES)[number]
 export type Bucket = 'overdue' | 'today' | 'upcoming' | 'later' | 'completed'
 export interface Task {
